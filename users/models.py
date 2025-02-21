@@ -9,6 +9,8 @@ class Role(models.Model):
         DOCTOR = 'DOCTOR', _('Doctor')
         PATIENT = 'PATIENT', _('Patient')
         STAFF = 'STAFF', _('Staff')
+        RECEPTIONIST = 'RECEPTIONIST', _('Receptionist')
+        
     group = models.OneToOneField(
         Group, 
         on_delete=models.CASCADE, 

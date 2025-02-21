@@ -42,6 +42,13 @@ class PatientSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['fhir_id', 'created_at', 'updated_at']
 
+    def update(self, instance, validated_data):
+        """Allow partial updates on PUT and PATCH."""
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
 
 class MedicalHistorySerializer(serializers.ModelSerializer):
     """Serializer for MedicalHistory model."""
@@ -61,6 +68,13 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def update(self, instance, validated_data):
+        """Allow partial updates on PUT and PATCH."""
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -96,6 +110,13 @@ class DocumentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Unsupported file type.")
         return value
 
+    def update(self, instance, validated_data):
+        """Allow partial updates on PUT and PATCH."""
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
 
 class HL7MessageSerializer(serializers.ModelSerializer):
     """Serializer for HL7Message model."""
@@ -110,3 +131,10 @@ class HL7MessageSerializer(serializers.ModelSerializer):
             'created_at'
         ]
         read_only_fields = ['processed', 'created_at']
+
+    def update(self, instance, validated_data):
+        """Allow partial updates on PUT and PATCH."""
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance

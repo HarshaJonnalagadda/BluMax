@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'appointments',
     'billing',
     'analytics',
+    'inventory',
 ]
 
 # Custom User Model
@@ -189,3 +190,6 @@ CORS_ALLOWED_ORIGINS = [
 TWILIO_ACCOUNT_SID = "your_twilio_account_sid"
 TWILIO_AUTH_TOKEN = "your_twilio_auth_token"
 TWILIO_PHONE_NUMBER = "your_twilio_phone_number"
+
+OTP_TOTP_TOLERANCE = 2  # Accept tokens within ±60 seconds
+OTP_TOTP_ISSUER = "BluMax Health"  # Issuer name for TOTP tokens

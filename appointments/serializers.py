@@ -31,11 +31,11 @@ class AppointmentSerializer(serializers.ModelSerializer):
         doctor = data.get('doctor')
         
         # Ensure onsite appointments can only be booked by receptionists
-        if is_onsite and user.role != Role.RECEPTIONIST:
+        if is_onsite and user.role != Role.RoleType.RECEPTIONIST:
             raise serializers.ValidationError("Only receptionists can book onsite appointments.")
         
         # Ensure patients cannot book appointments as doctors
-        if user.role == Role.DOCTOR and data.get('patient').user == user:
+        if user.role == Role.RoleType.DOCTOR and data.get('patient').user == user:
             raise serializers.ValidationError("Doctors cannot book appointments for themselves.")
         
         # Prevent booking past dates

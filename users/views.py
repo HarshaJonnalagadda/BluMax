@@ -205,15 +205,29 @@ class UserViewSet(viewsets.ViewSet):
     def mfa_verify(self, request):
         """Verify and confirm MFA setup for the authenticated user."""
         serializer = MFAVerifySerializer(data=request.data, context={"request": request})
+        
         if serializer.is_valid():
-            device = devices_for_user(request.user, confirmed=False).first()
-            if device:
-                device.confirmed = True
-                device.save()
-                request.user.is_mfa_enabled = True
-                request.user.save()
-                return Response({"status": "MFA enabled successfully"}, status=status.HTTP_200_OK)
+            # Retrieve any TOTP device linked to the user
+            device = next((d for d in devices_for_user(request.user)), None)
+
+            if not device:
+                return Response({"error": "No MFA device found for this user."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify token with a tolerance of 60 seconds (to prevent time drift issues)
+            if device.verify_token(serializer.validated_data["token"], tolerance=2):
+                # If device was previously unconfirmed, confirm it now
+                if not device.confirmed:
+                    device.confirmed = True
+                    device.save()
+                    request.user.is_mfa_enabled = True
+                    request.user.save()
+
+                return Response({"status": "MFA verified successfully"}, status=status.HTTP_200_OK)
+
+            return Response({"error": "Invalid or expired MFA token."}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
     @action(detail=False, methods=["get"], permission_classes=[permissions.IsAdminUser])
     def audit_logs(self, request):
@@ -343,21 +357,30 @@ class RoleViewSet(viewsets.ViewSet):
     # Assign permissions to a role
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAdminUser])
     def assign_permissions(self, request, pk=None):
-        """Assign permissions to a role."""
+        """
+        Reassign permissions to a role.
+        This clears all existing permissions before assigning the new ones.
+        """
         role = get_object_or_404(Role, id=pk, is_active=True)
         permissions = request.data.get("permissions", [])
-        if not permissions:
-            return Response({"detail": "No permissions provided."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Clear all existing permissions
+        role.group.permissions.clear()
+
+        # If no new permissions provided, return success after clearing
+        if not permissions:
+            return Response({"detail": "All permissions removed successfully."}, status=status.HTTP_200_OK)
+
+        # Assign new permissions
         for codename in permissions:
             try:
                 permission = Permission.objects.get(codename=codename)
                 role.group.permissions.add(permission)
             except Permission.DoesNotExist:
-                return Response({"detail": f"Permission {codename} not found."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": f"Permission '{codename}' not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"detail": "Permissions assigned successfully."}, status=status.HTTP_200_OK)
-
+        return Response({"detail": "Permissions reassigned successfully."}, status=status.HTTP_200_OK)
+    
     # Retrieve permissions assigned to a role
     @action(detail=True, methods=["get"], permission_classes=[permissions.IsAdminUser])
     def retrieve_permissions(self, request, pk=None):

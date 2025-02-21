@@ -27,9 +27,13 @@ class Appointment(models.Model):
     )
     reason = models.TextField(null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
-    is_onsite = models.BooleanField(default=False)  # NEW FIELD for onsite booking
+    is_onsite = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    invoice = models.OneToOneField(
+        "billing.Invoice", null=True, blank=True, on_delete=models.SET_NULL, related_name="related_appointment"
+    )
 
     def cancel(self):
         """Cancel the appointment and log the action."""

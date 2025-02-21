@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from .models import Appointment
 from .serializers import AppointmentSerializer, ScheduleSerializer
 from .tasks import send_appointment_reminders, send_reschedule_notification, send_cancellation_notification
+from billing.models import Invoice
 from users.models import User, Role
 import logging
 
@@ -19,40 +20,50 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Create a new appointment (Online or Onsite)"""
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            # Check for conflicts
-            date = serializer.validated_data['date']
-            time_slot = serializer.validated_data['time_slot']
-            doctor = serializer.validated_data['doctor']
-            patient = serializer.validated_data['patient']
-            is_onsite = request.data.get('is_onsite', False)
+        try:
+            serializer = self.get_serializer(data=request.data)
+            if serializer.is_valid():
+                # Check for conflicts
+                date = serializer.validated_data['date']
+                time_slot = serializer.validated_data['time_slot']
+                doctor = serializer.validated_data['doctor']
+                patient = serializer.validated_data['patient']
+                is_onsite = request.data.get('is_onsite', False)
 
-            # Restrict onsite booking to receptionists only
-            if is_onsite and request.user.role != Role.RECEPTIONIST:
-                return Response(
-                    {"detail": "Only receptionists can book onsite appointments."},
-                    status=status.HTTP_403_FORBIDDEN
+                # Restrict onsite booking to receptionists only
+                if is_onsite and request.user.role != Role.RECEPTIONIST:
+                    return Response(
+                        {"detail": "Only receptionists can book onsite appointments."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+                # Prevent booking past dates
+                if date < now().date():
+                    return Response({"detail": "Cannot book appointments in the past."}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Check for scheduling conflicts
+                conflicts = Appointment.objects.filter(
+                    doctor=doctor, date=date, time_slot=time_slot, status=Appointment.Status.SCHEDULED
                 )
+                if conflicts.exists():
+                    return Response({"detail": "Time slot not available."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Prevent booking past dates
-            if date < now().date():
-                return Response({"detail": "Cannot book appointments in the past."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Check for scheduling conflicts
-            conflicts = Appointment.objects.filter(
-                doctor=doctor, date=date, time_slot=time_slot, status=Appointment.Status.SCHEDULED
-            )
-            if conflicts.exists():
-                return Response({"detail": "Time slot not available."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Save appointment
-            appointment = serializer.save()
-            appointment.status = Appointment.Status.CONFIRMED if request.data.get('is_onsite', False) else Appointment.Status.SCHEDULED
-            appointment.save()
-            logger.info(f"New appointment created: {appointment}")
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                # Save appointment
+                appointment = serializer.save()
+                appointment.status = Appointment.Status.CONFIRMED if request.data.get('is_onsite', False) else Appointment.Status.SCHEDULED
+                appointment.save()
+                
+                # Generate invoice for the appointment
+                Invoice.generate_invoice_for_appointment(appointment)
+                if invoice:
+                    appointment.invoice = invoice
+                    appointment.save()
+                logger.info(f"New appointment created: {appointment}")
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(e)
+            return Response({"detail": "An error occurred while creating the appointment."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['put'])
     def reschedule(self, request, pk=None):

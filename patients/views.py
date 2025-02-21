@@ -16,12 +16,16 @@ from .serializers import (
 from .services import ImageProcessor, FHIRExporter, HL7Processor
 from .tasks import process_medical_image, notify_missed_follow_ups, notify_irregular_progress
 from users.models import User, Role, AuditLog
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = PatientSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter]
+    lookup_field = "id"
     search_fields = [
         'user__first_name',
         'user__last_name',
@@ -34,9 +38,16 @@ class PatientViewSet(viewsets.ModelViewSet):
         """Filter queryset based on user role and search query"""
         user = self.request.user
         queryset = Patient.objects.select_related('user').prefetch_related('documents', 'medicalhistory_set')
-
+        print(f"User: {user}, Queryset IDs: {list(queryset.values_list('id', flat=True))}")
         # Filter based on user role
+        if user.is_superuser or user.is_staff:
+            return queryset
+        
         if user.role == Role.RoleType.PATIENT:
+            print('Query set',queryset.filter(user=user))
+            print(f"Is Admin: {user.is_superuser}, Is Staff: {user.is_staff}")
+            print(user.get_all_permissions())  
+            print(f"User Role: {user.role}")  
             return queryset.filter(user=user)
 
         # Handle search query
@@ -54,52 +65,78 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Create new patient and log action"""
-        patient = serializer.save()
-        AuditLog.objects.create(
-            user=self.request.user,
-            action='CREATE',
-            resource_type='PATIENT',
-            resource_id=str(patient.id),
-            ip_address=self.request.META.get('REMOTE_ADDR'),
-            details={'patient_id': patient.patient_id}
-        )
+        try:
+            patient = serializer.save()
+            AuditLog.objects.create(
+                user=self.request.user,
+                action='CREATE',
+                resource_type='PATIENT',
+                resource_id=str(patient.id),
+                ip_address=self.request.META.get('REMOTE_ADDR'),
+                details={'patient_id': patient.patient_id}
+            )
+        except Exception as e:
+            print(e)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating patient: {str(e)}")
+            raise
 
     def perform_update(self, serializer):
         """Update patient and log action"""
-        patient = serializer.save()
-        AuditLog.objects.create(
-            user=self.request.user,
-            action='UPDATE',
-            resource_type='PATIENT',
-            resource_id=str(patient.id),
-            ip_address=self.request.META.get('REMOTE_ADDR'),
-            details={'patient_id': patient.patient_id}
-        )
+        try:
+            patient = serializer.save()
+            print(f"Updating patient: {patient.id}")  # Debug log
+            print(f"Updating patient: {patient.patient_id}")  # Debug log
+            AuditLog.objects.create(
+                user=self.request.user,
+                action='UPDATE',
+                resource_type='PATIENT',
+                resource_id=str(patient.id),
+                ip_address=self.request.META.get('REMOTE_ADDR'),
+                details={'patient_id': patient.patient_id}
+            )
+        except Exception as e:
+            print(e)
 
     @action(detail=True, methods=['get'])
     def medical_history(self, request, pk=None):
         """Retrieve medical history for a specific patient"""
-        patient = self.get_object()
-        
-        # Check permissions
-        if not request.user.has_perm('users.can_view_patient_records'):
-            if request.user.role != Role.RoleType.DOCTOR and request.user != patient.user:
-                return Response(
-                    {"detail": "Permission denied"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-        
-        medical_history = MedicalHistory.objects.filter(patient=patient)
+        try:
+            patient = self.get_object()  # ✅ Ensures correct patient retrieval
+            print(f"✅ Fetching medical history for Patient ID: {patient.id}")  # Debugging
 
-        # Add pagination
-        page = self.paginate_queryset(medical_history)
-        if page is not None:
-            serializer = MedicalHistorySerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            # Check if the user has permission to view medical history
+            if not request.user.has_perm('users.can_view_patient_records'):
+                if request.user.role != Role.RoleType.DOCTOR and request.user != patient.user:
+                    return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = MedicalHistorySerializer(medical_history, many=True)
-        return Response(serializer.data)
+            # Fetch medical history
+            medical_history = MedicalHistory.objects.filter(patient=patient)
+            print(f" Medical history count: {medical_history.count()}")  # Debugging
 
+            #  Return an empty list instead of a 500 error
+            if not medical_history.exists():
+                return Response({"detail": "No medical history found"}, status=status.HTTP_200_OK)
+
+            # Add pagination
+            page = self.paginate_queryset(medical_history)
+            if page is not None:
+                serializer = MedicalHistorySerializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = MedicalHistorySerializer(medical_history, many=True)
+            return Response(serializer.data)
+
+        except Patient.DoesNotExist:
+            print(" Patient not found!")  # Debugging
+            return Response({"detail": "Patient not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            print(f" Unexpected Error: {e}")  # Debugging
+            logger.error(f"Error retrieving medical history: {str(e)}")
+            return Response({"detail": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=True, methods=['post'])
     def documents(self, request, pk=None):
         """Upload document for a patient"""
