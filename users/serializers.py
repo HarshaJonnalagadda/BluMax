@@ -5,6 +5,8 @@ from django.contrib.auth.models import Group,Permission
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model to retrieve user details."""
 
+    roles = serializers.SerializerMethodField() 
+
     class Meta:
         model = User
         fields = [
@@ -13,7 +15,7 @@ class UserSerializer(serializers.ModelSerializer):
     "email",
     "first_name",
     "last_name",
-    "role",
+    "roles",
     "phone_number",
     "is_mfa_enabled",
     "created_at",
@@ -31,6 +33,20 @@ class UserSerializer(serializers.ModelSerializer):
     ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    
+    def get_roles(self, obj):
+        """
+        Get all roles assigned to the user dynamically.
+        """
+        groups = obj.groups.all()  # Fetch groups
+        role_names = []
+
+        for group in groups:
+            role = getattr(group, "role", None)  # ✅ Avoid AttributeError if role is missing
+            if role:  # ✅ Ensure role exists before accessing attributes
+                role_names.append(role.id)
+
+        return role_names  # ✅ Always return a list, even if empty
 
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializer for registering a new user."""

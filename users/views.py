@@ -124,11 +124,18 @@ class UserViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """Retrieve all users - accessible to admins only."""
-        if not request.user.is_staff:
-            return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
-        queryset = User.objects.all()
-        serializer = UserSerializer(queryset, many=True)
-        return Response(serializer.data)
+        try:
+            if not request.user.is_staff:
+                return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+            queryset = User.objects.all()
+            serializer = UserSerializer(queryset, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error in UserViewSet.list: {str(e)}", exc_info=True)
+            return Response(
+                {'detail': 'An error occurred while fetching user data.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def retrieve(self, request, pk=None):
         """Retrieve details of a single user - accessible to admins only."""
@@ -246,6 +253,7 @@ class UserViewSet(viewsets.ViewSet):
             print(f"Assigning role: {role.group.name} to user: {user.username}")
             user.groups.add(role.group)
         user.save()
+        user.refresh_from_db() 
         return Response(
             {"detail": "Roles assigned successfully.", "roles": [role_id for role_id in roles]},
             status=status.HTTP_200_OK,
