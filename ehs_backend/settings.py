@@ -139,10 +139,21 @@ CACHES = {
 #    }
 #}
 
+#DATABASES = {
+#    'default': {
+#        'ENGINE': 'django.db.backends.sqlite3',
+#        'NAME': BASE_DIR / 'db.sqlite3',  # Default SQLite database file
+#    }
+#}
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',  # Default SQLite database file
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'blumax',
+        'USER': 'admin',  # Make sure this matches the existing user
+        'PASSWORD': 'adminpassword',  # Use the updated password
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 

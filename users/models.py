@@ -9,6 +9,11 @@ class Role(models.Model):
         DOCTOR = 'DOCTOR', _('Doctor')
         PATIENT = 'PATIENT', _('Patient')
         STAFF = 'STAFF', _('Staff')
+        RECEPTIONIST = 'RECEPTIONIST', _('Receptionist')
+        NURSE = 'NURSE', _('Nurse')
+        LAB_TECHNICIAN = 'LAB_TECHNICIAN', _('Lab Technician')
+        PHARMACIST = 'PHARMACIST', _('Pharmacist')
+        
     group = models.OneToOneField(
         Group, 
         on_delete=models.CASCADE, 
@@ -36,6 +41,15 @@ class User(AbstractUser):
     is_mfa_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    name = models.CharField(max_length=255, verbose_name="Full Name")
+    department = models.CharField(max_length=255, blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=[("Male", "Male"), ("Female", "Female"), ("Other", "Other")], blank=True, null=True)
+    marital_status = models.CharField(max_length=15, choices=[("Single", "Single"), ("Married", "Married"), ("Divorced", "Divorced"), ("Widowed", "Widowed")], blank=True, null=True)
+    id_proof_number = models.CharField(max_length=50, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    hospital_id = models.CharField(max_length=50, blank=True, null=True)
+    hospital_name = models.CharField(max_length=255, blank=True, null=True)
 
     # Fix reverse accessor clashes
     groups = models.ManyToManyField(

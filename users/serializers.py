@@ -8,18 +8,27 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id",
-            "username",
-            "email",
-            "first_name",
-            "last_name",
-            "role",
-            "phone_number",
-            "is_mfa_enabled",
-            "created_at",
-            "updated_at",
-            "is_active"
-        ]
+    "id",
+    "username",
+    "email",
+    "first_name",
+    "last_name",
+    "role",
+    "phone_number",
+    "is_mfa_enabled",
+    "created_at",
+    "updated_at",
+    "is_active",
+    "password",
+    "name",
+    "department",
+    "gender",
+    "marital_status",
+    "id_proof_number",
+    "address",
+    "hospital_id",
+    "hospital_name"
+    ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
@@ -30,14 +39,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "username",
-            "email",
-            "password",
-            "first_name",
-            "last_name",
-            "role",
-            "phone_number",
-        ]
+    "id", "username", "email", "password", "first_name", "last_name", "role", "phone_number",
+    "name", "department", "gender", "marital_status", "id_proof_number", "address",
+    "hospital_id", "hospital_name", "created_at"
+     ]
 
     def create(self, validated_data):
         """Create a new user with hashed password."""
@@ -61,7 +66,11 @@ class UpdateUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['email', 'role', 'is_active', 'first_name', 'last_name', 'phone_number']
+        fields = [
+            "id", "username", "email", "password", "first_name", "last_name", "role", "phone_number", 
+            "name", "department", "gender", "marital_status", "id_proof_number", "address",
+            "hospital_id", "hospital_name", "created_at"
+        ]
         read_only_fields = ['username']
 
     def validate_email(self, value):
